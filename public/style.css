@@ -1,0 +1,225 @@
+/* ========== Global Reset & Fonts ========== */
+html,
+body {
+    font-family: "Inter", sans-serif;
+    background: #f4f6f9;
+    margin: 0;
+    padding: 0;
+    height: 97%;
+}
+
+/* ========== Chat Container ========== */
+.chat-container {
+    max-width: 600px;
+    margin: 40px auto;
+    background: rgba(255, 255, 255, 0.61);
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+    overflow: hidden;
+}
+
+/* ========== Header ========== */
+.header {
+    background: linear-gradient(135deg, #1c1c0d, #41491a);
+    color: white;
+    padding: 16px;
+    text-align: center;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+}
+
+.header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.header small {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+/* ========== Messages Area ========== */
+.messagesBg {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: #a5989849;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
+
+/* Scrollbar styling */
+.messagesBg::-webkit-scrollbar {
+    width: 8px;
+}
+
+.messagesBg::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.messagesBg::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+}
+
+/* ========== Message Bubbles ========== */
+.message {
+    padding: 10px 14px;
+    border-radius: 16px;
+    max-width: 75%;
+    word-wrap: break-word;
+    line-height: 1.4;
+    font-size: 15px;
+    background-color: #f1f1f1;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* User bubble */
+.user {
+    background: #e3fceb;
+    color: #065f46;
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0, 128, 0, 0.1);
+}
+
+/* Assistant bubble */
+.model {
+    background: #e9f1fa;
+    color: #2354da;
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* System bubble */
+.system {
+    background: #ede9fe;
+    color: #5b21b6;
+    border: 1px solid #c4b5fd;
+    align-self: center;
+    font-size: 13px;
+    padding: 6px 10px;
+    /* border-radius: 8px; */
+    border-bottom-left-radius: 4px;
+    opacity: 0.9;
+}
+
+/* ========== Tool Card ========== */
+.tool-card {
+    background: #fffaf0;
+    border: 1px solid #fcd34d;
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 6px;
+    font-size: 14px;
+    color: #92400e;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+}
+
+.tool-card:hover {
+    transform: translateY(-2px);
+}
+
+.tool-card h4 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.tool-card ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.tool-card li {
+    margin: 3px 0;
+}
+
+.tool-card.insights {
+    background: #f0f9ff;
+    border: 1px solid #38bdf8;
+    color: #075985;
+}
+
+.tool-card.insights h4 {
+    color: #0369a1;
+}
+
+.insight-content {
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    /* keep bullet points and line breaks */
+}
+
+/* ========== Footer Input & Button ========== */
+.footer {
+    display: flex;
+    padding: 12px;
+    border-top: 1px solid #e5e7eb;
+    background: #fafafa;
+}
+
+.footer input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 9999px;
+    outline: none;
+    font-size: 14px;
+    transition: border 0.2s;
+}
+
+.footer input:focus {
+    border-color: #9ca3af;
+}
+
+.footer button {
+    margin-left: 10px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #98c006, #92b808);
+    color: #111;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    transition: transform 0.2s, box-shadow 0.2s;
+    transform: translateY(-2px);
+}
+
+/* ========== Animations ========== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* //////////// */
+
+ui-resource-renderer>div {
+    height: 400px;
+}
+
+ui-resource-renderer {
+    display: block;
+    width: 100%;
+    height: 400px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
