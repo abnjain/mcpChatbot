@@ -53,3 +53,27 @@ export async function classifyNeedsTools(awsBedrockClient, text) {
 export function stripThinking(text = "") {
   return text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
 }
+
+export function cleanLastDetails(messages) {
+  if (!Array.isArray(messages)) return messages;
+
+  let lastAssistantIndex = -1;
+
+  // Find last assistant message that has lastDetails
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === "assistant" && msg.lastDetails) {
+      lastAssistantIndex = i;
+      break;
+    }
+  }
+
+  // Clean all lastDetails except the last assistant with it
+  return messages.map((msg, index) => {
+    const newMsg = { ...msg };
+    if (newMsg.lastDetails && index !== lastAssistantIndex) {
+      delete newMsg.lastDetails;
+    }
+    return newMsg;
+  });
+}

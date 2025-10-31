@@ -1,34 +1,66 @@
+import { TOOLS } from "../constant/constant.js";
+import { searchOrderDetails } from "../services/ae.api.js";
+// import { getStorefrontUrl } from "../store/requestStore.js";
+import { cleanObject } from "./toolsHelper.js";
 
-// export const sendToUi = async (clientId, event, payload) => {
-//     console.log("sendToUi ", "c ", clientId, "e ", event, "p ", payload);
-//     const res = uiStreams.get(clientId);
-//     if (!res) return false;
-//     res.write(`event: ${event}\n`);
-//     res.write(`data: ${JSON.stringify(payload)}\n\n`);
-//     return true;
-// }
+// type can be id or gid
+export async function globalOrderId({ id = null, type = "id", config }) {
+  try {
+    const orderNameOrId = id?.id || id;
+    let details = null;
+    let orderName = null;
+    if (type === "id") {
+      const orderData = await searchOrderDetails(orderNameOrId, config);
+      const orderGid = orderData?.data?.result?.orderId || null;
+      // id = orderGid?.split( "/").pop();
+      id = orderGid?.split("/").pop();
+      orderName = orderData?.data?.result?.orderNumber
+      details = orderData?.data?.result || null;
+      details = cleanObject(details);
+    } else if (type === "gid") {
+      const orderData = await searchOrderDetails(orderNameOrId, config);
+      // const orderGid = orderData?.data?.result?.orderId || null;
+      const orderGid = orderData?.data?.result?.orderId || null;
+      id = orderGid
+      orderName = orderData?.data?.result?.orderNumber
+      details = orderData?.data?.result || null;
+      details = cleanObject(details);
+    }
+    return { id, details, orderName };
+  } catch (error) {
+    console.log("Global Order Id Error: ", error);
+    return error.message
+  }
+}
 
-// export const ensureMcpSession = async (clientId) => {
-//     let s = sessions.get(clientId);
-//     if (s?.ready) {
-//         await s.ready;
-//         return s;
-//     }
-//     console.log("ensureMcpSession step1", clientId);
-//     const mcp = new McpClient({ name: 'web-client', version: '1.0.0' });
-//     const transport = new SSEClientTransport(new URL(MCP_URL));
-//     console.log("ensureMcpSession step2", clientId);
-//     const ready = mcp.connect(transport)
-//         .then(() => console.log(`[MCP] connected for ${clientId}`))
-//         .catch(err => {
-//             console.log("ensureMcpSession step3", err);
-//             sessions.delete(clientId);
-//             throw err;
-//         });
+export function idConverter({ id = null, type = "id" }) {
+  if (type === "id" && id?.split("/")) {
+    id = id?.split("/").pop();
+  }
+  return { id };
+}
 
-//     s = { mcp, ready, tools: null, chat: [] };
-//     sessions.set(clientId, s);
-//     await ready;
-//     console.log("ensureMcpSession step5",);
-//     return s;
-// }
+export function normalizeToolNames(toolNames = []) {
+  return toolNames
+    .map((name) => {
+      // Case 1: if it's like "TOOLS.LOGIN"
+      if (name.startsWith("TOOLS.")) {
+        const key = name.replace("TOOLS.", "");
+        return TOOLS[key] || null;
+      }
+
+      // Case 2: if it's like "LOGIN"
+      if (TOOLS[name]) {
+        return TOOLS[name];
+      }
+
+      // Case 3: if it's already the value (like "search_shop_catalog_cart")
+      if (Object.values(TOOLS).includes(name)) {
+        return name;
+      }
+
+      console.warn(`Unknown tool name: ${name}`);
+      return null;
+    })
+    .filter(Boolean); // remove nulls
+}

@@ -1,7 +1,7 @@
 import { UIResourceRenderer } from "@mcp-ui/client";
 import { toOrderId } from "../utils/ids";
 import { actionHandlers } from "../utils/handlers";
-import { config } from "./Chatbot";
+import { config } from "../config/variables.js";
 
 /* ---------------- Utilities ---------------- */
 function safeParseJson(value) {

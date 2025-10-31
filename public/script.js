@@ -6,24 +6,21 @@ const BACKEND_URL = "http://localhost:3000";
 
 const config = {
   // storefrontUrl: "https://shop-chat-agent-674.myshopify.com/",
-  storefrontUrl: "mohit-singh-dev.myshopify.com",
-  // win
-  // ow.location.hostname
-  //   : null,
+  storefrontUrl: "antim-fulwere-dev-2-0.myshopify.com",
   // orderId: ["6227676856486"],
   // orderId: ["6236791832742"], 
-  orderId: ["6257778720934"], 
+  orderId: ["5761157333147"],
   // orderId: ["6075575369797"],
   // orderId ? orderId : null,
-  // cart_Id: "gid://shopify/Cart/hWN1OpEDODuwkXZaDigBJd0E?key=3e208c9612602e22441529fbfefc3f82", // cartID for shop-chat-agent-674 storefront
-  cart_Id: "gid://shopify/Cart/hWN2MVld2ppsWdkpEoBBOXcv?key=6b39077797903a111d5a1f00adcd87f4", // cartID for mohit-singh-dev storefront
+  cart_Id: "gid://shopify/Cart/hWN1OpEDODuwkXZaDigBJd0E?key=3e208c9612602e22441529fbfefc3f82", // cartID for shop-chat-agent-674 storefront
   lines: [
     {
       merchandise_id: "gid://shopify/ProductVariant/46351298298022",
+      // id: "gid://shopify/ProductVariant/46338034827430",
       quantity: 1
     }
   ],
-  customerId: 'gid://shopify/Customer/8811884937382'
+  customerId: 'gid://shopify/Customer/8155008827547'
 }
 let clientId = null;
 let status = "disconnected";
@@ -79,16 +76,25 @@ function push(role, text, toolName = null) {
 
 
 // SSE connection
-const es = new EventSource(`${BACKEND_URL}/ui-sse`);
+const es = new EventSource(`${BACKEND_URL}/ui-sse?conversationId=${conversationId}&newConversation=${newConversation}&clientId=${clientId}`);
 es.addEventListener("session", (e) => {
   const data = JSON.parse(e.data);
-  clientId = data.clientId;
+  // console.log(data);
+
+  clientId = data.conversationId;
   status = "connected";
   console.log("session established:", clientId);
 });
+es.addEventListener("history", (e) => {
+  const history = JSON.parse(e.data);
+  console.log("Received history:", history);
+  // maybe replay old messages in UI
+});
 es.addEventListener("message", (e) => {
   // console.log("message:", e.data);
-  const { role, text, toolName } = JSON.parse(e.data);
+  const { role, text, toolName, msg } = JSON.parse(e.data);
+  console.log(msg);
+
   // const data = JSON.parse(text)
   role !== "user" ? push(role || "system", text || "", toolName) : null;
 });
@@ -107,7 +113,9 @@ async function sendMessage() {
   try {
     await fetch(`${BACKEND_URL}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json",
+        "isExternal":false
+       },
       body: JSON.stringify({ clientId, message: msg, config }),
     });
   } catch (err) {

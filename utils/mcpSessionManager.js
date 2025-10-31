@@ -7,34 +7,34 @@ class MCPSessionManager {
     this.mcpUrl = mcpUrl;
   }
 
-  async ensureSession(clientId) {
-    let s = this.sessions.get(clientId);
+  async ensureSession(conversationId) {
+    let s = this.sessions.get(conversationId);
     if (s?.ready) {
       await s.ready;
-      return s; 
+      return s;
     }
 
-    console.log("[MCP] creating new session for", clientId);
-    const mcp = new McpClient({ name: "web-client", version: "1.0.0" });
+    // console.log("[MCP] creating new session for", conversationId);
+    const mcp = new McpClient({ name: "web-client", version: "1.0.0" , resetTimeoutOnProgress: true,  timeout: 300000,       timeoutMs: 300000, });
     const transport = new SSEClientTransport(new URL(this.mcpUrl));
-
+    
     const ready = mcp.connect(transport)
-      .then(() => console.log(`[MCP] connected for ${clientId}`))
+      .then(() => console.log(`[MCP] connected for ${conversationId}`))
       .catch(err => {
-        console.error(`[MCP] error for ${clientId}`, err);
-        this.sessions.delete(clientId);
+        console.error(`[MCP] error for ${conversationId}`, err);
+        this.sessions.delete(conversationId);
         throw err;
       });
 
     s = { mcp, ready, tools: null, chat: [] };
-    this.sessions.set(clientId, s);
+    this.sessions.set(conversationId, s);
     await ready;
 
     return s;
   }
 
-  clearSession(clientId) {
-    this.sessions.delete(clientId);
+  clearSession(conversationId) {
+    this.sessions.delete(conversationId);
   }
 }
 

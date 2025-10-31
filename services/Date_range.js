@@ -1,15 +1,15 @@
 import { GoogleGenAI } from '@google/genai';
 
 // ✅ API key set karo (env me rakho)
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY  });
-const GEMINI_MODEL = process.env.GEMINI_MODEL ;
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const GEMINI_MODEL = process.env.GEMINI_MODEL;
 
 export async function getDateRange(userInput) {
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  const today = new Date();
   const prompt = `
 You are a date range parser. The user provides natural language input describing a date range, such as "aaj se 5 din pahle", "last 20 days", "May 2025 se June 2025", or "before 25 days". 
 Your task is to convert the input into a JSON object with "from" and "to" dates in ISO format (YYYY-MM-DD). 
-- If you got nothing then by default set the "from" date to 7 days before today and the "to" date to today.
+- If you got nothing then by default set the "from" date to 1 month before from today and the "to" date to today.
 - Today's date is ${today}.
 - For phrases like "before X days", interpret it as a range from X days before today to ${today}.
 - For phrases like "last X days", interpret it as a range from X days before today to ${today}.
@@ -24,25 +24,32 @@ User input: "${userInput}"
   try {
     const resp = await ai.models.generateContent({
       model: GEMINI_MODEL,
-      contents: prompt,
+      contents: [
+        { role: "user", parts: [{ text: prompt }] }
+      ]
     });
 
-    // Extract response text
     let res = resp.candidates[0].content.parts[0].text.trim();
 
-    // Handle cases where response may or may not be wrapped in ```json
     const match = res.match(/```json([\s\S]*?)```/);
     if (match) {
       res = match[1].trim();
     }
 
-    // Parse the response as JSON
-    return JSON.parse(res);
+    const parsed = JSON.parse(res);
+
+    // 🔑 Preserve full ISO with current time
+    const now = new Date(); // current time
+    const from = new Date(parsed.from + "T" + now.toISOString().split("T")[1]).toISOString();
+    const to = new Date(parsed.to + "T" + now.toISOString().split("T")[1]).toISOString();
+
+    return { from, to };
   } catch (error) {
     console.error("Error parsing date range:", error.message);
     throw new Error("Failed to parse date range");
   }
 }
+
 
 // ----------------- Example -----------------
 // const input1 = "give me today revinue";

@@ -2,15 +2,15 @@ import crypto from "crypto";
 
 class SSEManager {
   constructor() {
-    this.clients = new Map(); // clientId -> res
+    this.clients = new Map(); // conversationId -> res
   }
 
-  addClient(res) {
-    const clientId = crypto.randomUUID();
-    this.clients.set(clientId, res);
+  addClient(res, conversationId, newConversation) {
+    // const conversationId = conversationId;
+    this.clients.set(conversationId, res);
 
     res.write(`event: session\n`);
-    res.write(`data: ${JSON.stringify({ clientId })}\n\n`);
+    res.write(`data: ${JSON.stringify({ conversationId })}\n\n`);
 
     const hb = setInterval(() => {
       try { res.write(`event: ping\ndata: {}\n\n`); } catch {}
@@ -18,14 +18,13 @@ class SSEManager {
 
     res.on("close", () => {
       clearInterval(hb);
-      this.clients.delete(clientId);
+      this.clients.delete(conversationId);
     });
-
-    return clientId;
+    return conversationId;
   }
 
-  send(clientId, event, payload) {
-    const res = this.clients.get(clientId);
+  send(conversationId, event, payload) {
+    const res = this.clients.get(conversationId);
     if (!res) return false;
     res.write(`event: ${event}\n`);
     res.write(`data: ${JSON.stringify(payload)}\n\n`);

@@ -1,22 +1,22 @@
 
-export function getOrderDetails(data) {
-    let text;
-try {
-  text = typeof data.text === "string" ? JSON.parse(data.text) : data.text;
-} catch {
-  text = data.text || {};
-}
-  const div = document.createElement("div");
-  // console.log(text);
+// export function getOrderDetails(data) {
+//     let text;
+// try {
+//   text = typeof data.text === "string" ? JSON.parse(data.text) : data.text;
+// } catch {
+//   text = data.text || {};
+// }
+//   const div = document.createElement("div");
+//   // console.log(text);
   
-  div.className = "tool";
-  div.innerHTML = `
-    <h4>Order Details</h4>
-    <p><b>Order ID:</b> ${data.orderId || "N/A"}</p>
-    <p><b>Status:</b> ${data.status || "Unknown"}</p>
-  `;
-  return div;
-}
+//   div.className = "tool";
+//   div.innerHTML = `
+//     <h4>Order Details</h4>
+//     <p><b>Order ID:</b> ${data.orderId || "N/A"}</p>
+//     <p><b>Status:</b> ${data.status || "Unknown"}</p>
+//   `;
+//   return div;
+// }
 
 export function searchShopCatalog(data) {
   data = JSON.parse(data);

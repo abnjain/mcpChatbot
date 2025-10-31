@@ -51,8 +51,6 @@ export const actionHandlers = {
 
   loginurl: ({ params }) => {
     const { redirectLink } = params;
-    console.log(params, "redirectLink------");
-
     // CSP safe: new tab open karo
     const link = document.createElement("a");
     link.href = redirectLink;
@@ -97,8 +95,10 @@ export const actionHandlers = {
   },
 
   "cancel-order": ({ params, payload, handleSubmit }) => {
-    const { orderId, customerId, currencyCode, refundedAmount, refund, restock, staffNote, totalAmount, orderNo } = params;
-    const message = `🚫 Cancel my order of order ${orderNo}`
+    console.log(params);
+
+    const { orderId, customerId, currencyCode, refundedAmount, refund, restock, staffNote, totalAmount, orderNo, selectedOffer } = params;
+    const message = `🚫 Cancel my order number ${orderNo}`
     handleSubmit({
       ...payload,
       formattedMessage: message,
@@ -106,10 +106,20 @@ export const actionHandlers = {
     })
   },
 
+  "add-offer-details": ({ params, payload, handleSubmit }) => {
+    console.log(params);
+    const message = `🎁 Apply offer of Smart Cancellation offerId ${params.offerId} for order ${params.orderNameOrId} with selectedOffer ${params.selectedOffer.value}, ${params.selectedOffer.type}`;
+    handleSubmit({
+      ...payload,
+      formattedMessage: message,
+      type: "add-offer-details"
+    })
+  },
+
   ordercompleteurl: ({ params }) => {
-    const { orderCompUrl } = params;
+    const { orderCompUrl, returnUrl } = params;
     const link = document.createElement("a");
-    link.href = orderCompUrl;
+    link.href = `orderCompUrl?returnUrl=${encodeURIComponent(returnUrl)}`;
     link.rel = "noopener noreferrer";
     link.target = "_blank"
     link.click();
@@ -134,6 +144,28 @@ export const actionHandlers = {
       ...payload,
       formattedMessage: message,
       type: "accept-refund",
+    });
+  },
+
+  "get-ticket-details": ({ params, payload, handleSubmit }) => {
+    const { ticketId, ticketNo } = params;
+    const message = `✅ Get details of my ticket ${ticketNo}`;
+    handleSubmit({
+      ...payload,
+      formattedMessage: message,
+      type: "get-ticket-details",
+    });
+  },
+
+  "reply-chatbot-message": ({ params, payload, handleSubmit }) => {
+    const { ticketId, reply_message } = params;
+    const message = `👍 Add a reply message ${reply_message} on ticket ${ticketId}`;
+    console.log("message", message);
+
+    handleSubmit({
+      ...payload,
+      formattedMessage: message,
+      type: "reply-chatbot-message",
     });
   },
 
@@ -217,20 +249,36 @@ export function handleInputOrEvent(inputOrEvent, config, cartId, conversationId,
       }
 
       case "apply-discount-true": {
-        const { orderNameOrId, customerId, productVariantId, calculatedLineItemId, quantity, oldQuantity, selectedMethod } = params;
+        let { orderNameOrId, customerId, productVariantId, calculatedLineItemId, quantity, oldQuantity, chosenMethod, deliveryProfiles, result, index, address1, address2, city, country, firstName, lastName, phone, province, provinceCode, zip, selectedMethod } = params;
         userText = formattedMessage;
-        botText = `In my order edit product with calculated line item ${calculatedLineItemId} to ${quantity} (was ${oldQuantity}) in my order in order ${orderNameOrId} the product variant is ${productVariantId} where The selected method has a discountChange value of ${selectedMethod?.discountChange === "true" ? true : false} for customer ${customerId}`;
+        orderNameOrId = orderNo
+        // console.log(params, "--------------------jipjip");
+        const discountChangeStr = `discountChange: ${selectedMethod?.discountChange === "true" ? true : false}`;
+        if (calculatedLineItemId == "undefined" || calculatedLineItemId == "null") {
+          if (productVariantId == "undefined" || productVariantId == "null") {
+            botText = `In my order edit address with Shipping address: ${firstName} ${lastName}, ${address1}, ${address2 ? address2 + ', ' : ''}${city}, ${province} (${provinceCode}), ${country}, ${zip}. 
+              Phone: ${phone}. where  The selected method has a discountChange value of ${discountChangeStr}in the order ${orderNameOrId} for customer ${customerId}`;
+          } else {
+            botText = `Add product to my order as variant ${productVariantId} as quantity ${quantity} in my order and my customerId is ${customerId} where  The selected method has a discountChange value of ${discountChangeStr}in the order ${orderNameOrId}`;
+          }
+        } else {
+          if ((quantity == "undefined" || quantity == "null") && (oldQuantity == "undefined" || oldQuantity == "null")) {
+            botText = `In my order remove product with calculated line item ${calculatedLineItemId} in order ${orderNameOrId} the product variant is ${productVariantId} where The selected method has a discountChange value of ${discountChangeStr} for customer ${customerId}`;
+          } else {
+            botText = `In my order edit product with calculated line item ${calculatedLineItemId} to ${quantity} (was ${oldQuantity}) in my order in order ${orderNameOrId} the product variant is ${productVariantId} where  The selected method has a discountChange value of ${discountChangeStr} for customer ${customerId}`;
+          }
+        }
         break;
       }
 
       case "apply-shipping": {
         const { orderNameOrId, customerId, productVariantId, calculatedLineItemId, quantity, oldQuantity, chosenMethod, deliveryProfiles, result, index, address1, address2, city, country, firstName, lastName, phone, province, provinceCode, zip } = params;
-        console.log(params, "--------------------jipjip");
-        
+        // console.log(params, "--------------------jipjip");
+
         const value = `${deliveryProfiles}__${index}___<end>_${chosenMethod.name}/${chosenMethod.price}`;
         userText = formattedMessage;
         if (calculatedLineItemId == "undefined" || calculatedLineItemId == "null") {
-          if(productVariantId == "undefined" || productVariantId == "null") {
+          if (productVariantId == "undefined" || productVariantId == "null") {
             botText = `In my order edit address with Shipping address: ${firstName} ${lastName}, ${address1}, ${address2 ? address2 + ', ' : ''}${city}, ${province} (${provinceCode}), ${country}, ${zip}. 
               Phone: ${phone}. where The selected method of ${JSON.stringify({ selectedMethod: { [deliveryProfiles]: value } })} in the order ${orderNameOrId} for customer ${customerId}`;
           } else {
@@ -240,8 +288,8 @@ export function handleInputOrEvent(inputOrEvent, config, cartId, conversationId,
           if ((quantity == "undefined" || quantity == "null") && (oldQuantity == "undefined" || oldQuantity == "null")) {
             botText = `In my order remove product with calculated line item ${calculatedLineItemId} in order ${orderNameOrId} the product variant is ${productVariantId} where selected method is ${JSON.stringify({ selectedMethod: { [deliveryProfiles]: value } })} for customer ${customerId}`;
           } else {
-          botText = `In my order edit product with calculated line item ${calculatedLineItemId} to ${quantity} (was ${oldQuantity}) in my order in order ${orderNameOrId} the product variant is ${productVariantId} where The selected method of ${JSON.stringify({ selectedMethod: { [deliveryProfiles]: value } })} for customer ${customerId}`; 
-        }
+            botText = `In my order edit product with calculated line item ${calculatedLineItemId} to ${quantity} (was ${oldQuantity}) in my order in order ${orderNameOrId} the product variant is ${productVariantId} where The selected method of ${JSON.stringify({ selectedMethod: { [deliveryProfiles]: value } })} for customer ${customerId}`;
+          }
         }
         break;
       }
@@ -264,23 +312,46 @@ export function handleInputOrEvent(inputOrEvent, config, cartId, conversationId,
 
       case "remove-item": {
         params.lineItemId = toCalculatedLineItemId(params.lineItemId);
-        params.orderId = toOrderId(params.orderId);
+        params.orderId = toOrderId(params.orderNameOrId ? params.orderNameOrId : params.orderId ? params.orderId : params.orderNo);
         userText = formattedMessage;
         botText = `In my order remove product with calculated line item ${params.lineItemId} in order ${params.orderId} the product variant is ${params.variantId} where selected method is ${params.selectedMethod ? params.selectedMethod : null} for customer ${config.customerId}`;
         break;
       }
 
       case "cancel-order": {
-        params.orderId = toOrderId(params.orderId);
+        console.log(params);
+
+        params.orderNameOrId = toOrderId(params.orderNameOrId);
         userText = formattedMessage;
-        botText = `Cancel my order within order ${params.orderId} where my currency code is ${params.currencyCode}, the refunded amount is ${params.totalAmount > 0 ? params.totalAmount : "0"} refund is ${params.refund}, restock is ${params.restock}, the staffNote is ${params.staffNote} and the total amount is ${params.totalAmount} for customer ${config.customerId}`;
+        botText = `Cancel my order within order ${params.orderNameOrId} where my currency code is ${params.currencyCode}, the refunded amount is ${params.totalAmount > 0 ? params.totalAmount : "0"} refund is ${params.refund}, restock is ${params.restock}, the staffNote is ${params.staffNote} and the total amount is ${params.totalAmount} for customer ${config.customerId} with selectedOffer ${params.selectedOffer} ${params.selectedOffer ? `Add offer of Smart Cancellation offer ${params.offerId} for order ${params.orderNameOrId} with value ${params.value}` : ""}`;
+        break;
+      }
+
+      case "add-offer-details": {
+        params.orderNameOrId = toOrderId(params.orderNameOrId);
+        userText = formattedMessage;
+        botText = `Add offer of Smart Cancellation offerId ${params.offerId} for orderId ${params.orderNameOrId} with value ${JSON.stringify(params.selectedOffer.value)}, ${params.selectedOffer.type}`;
         break;
       }
 
       case "accept-refund": {
-        params.orderId = toOrderId(params.orderId);
+        params.orderId = params.orderNo
         userText = formattedMessage;
         botText = `Accept refund of my orderId ${params.orderId} and the reason ${params.reason}`;
+        break;
+      }
+
+      case "get-ticket-details": {
+        userText = formattedMessage;
+        console.log("pamarms", params.ticketId)
+        botText = `Give me support ticket details of ${params.ticketId}`;
+        break;
+      }
+
+      case "reply-chatbot-message": {
+        userText = formattedMessage;
+        console.log("pamarms", params.ticketId, params.reply_message)
+        botText = `Add this reply "${params.reply_message}" in my ticketId ${params.ticketId}`;
         break;
       }
 
@@ -299,7 +370,7 @@ export function handleInputOrEvent(inputOrEvent, config, cartId, conversationId,
       }
 
       case "get-order-details": {
-        params.orderId = toOrderId(params.orderId);
+        params.orderId = params.orderNo;
         userText = formattedMessage;
         botText = `Give me order details of this order ${params.orderId}`;
         break;

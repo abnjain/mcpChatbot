@@ -1,11 +1,11 @@
 import React from "react";
-
+import { config } from "../config/variables.js"
 const quickTools = [
-  { name: "orders_list_ae", text: "Get a list of orders", label: "📦 Order List", },
-  // { name: "search_shop_policies_and_faqs", text: "Find shop policies and FAQs", label: "📜 Policies & FAQs", },
-  { name: "search_shop_products", text: "Find shop products", label: "🛍️ Products", },
-  { name: "get_cart", text: "Retrieve cart details", label: "🛒 Cart Details", },
-  // { name: "get_cart", text: "Retrieve cart details", label: "🛒 Cart Details", },
+  { name: "orders_list_ae", text: "🧾 Get a list of orders", label: "📦 Order List", },
+  // { name: "search_shop_policies_and_faqs", text: "📝 Find shop policies and FAQs", label: "📜 Policies & FAQs", },
+  { name: "search_shop_products", text: "👜 Find shop products", label: "🛍️ Products", },
+  { name: "get_support_details_ae", text: "🎟️ Get a list of all my support tickets", label: "📋 Ticket List", },
+  { name: "create_chatbot_ticket_ae", text: `🎫 Create Ticket of the customer ${config.customerId}`, label: "🎫 Create Ticket", },
 ];
 
 function ToolSelector({ onToolSelect }) {
@@ -41,7 +41,7 @@ function ToolSelector({ onToolSelect }) {
           lineHeight: "1.5",
         }}
       >
-        Pick a tool below or type your question to dive in!
+        Pick a query below or type your question to dive in!
       </p>
       <div style={{ display: "grid", gap: "12px" }}>
         {quickTools.map((tool) => (

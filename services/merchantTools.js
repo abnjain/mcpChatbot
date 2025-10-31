@@ -2,7 +2,7 @@ import z from "zod"
 import { MongoClient } from 'mongodb';
 import { insights } from './insights.js'
 import { TOOLS } from "../constant/constant.js";
-import { awsBedrockClient, ollamaInst } from "../index.js";
+import { awsBedrockClient } from "../index.js";
 import { AppMokeOrders, OrderEditingHistory } from '../models/model.js';
 import { getDateRange } from './Date_range.js'
 import { GoogleGenAI } from "@google/genai";
@@ -45,18 +45,18 @@ async function editAgent(query, vectorDb) {
 
         if (EMBEDDING_MODEL === 'gemini-embedding-001') {
             // Get embedding for query using Gemini
-            response = await ai.models.embedContent({
-                model: 'gemini-embedding-001',
-                contents: query,
-                outputDimensionality: 768
-            });
-            queryEmbedding = response.embeddings;
+            // response = await ai.models.embedContent({
+            //     model: 'gemini-embedding-001',
+            //     contents: query,
+            //     outputDimensionality: 768
+            // });
+            // queryEmbedding = response.embeddings;
         } else if (EMBEDDING_MODEL === 'qllama/bge-small-en-v1.5') {
-            response = await ollamaInst.embeddings({
-                model: EMBEDDING_MODEL,
-                prompt: query
-            });
-            queryEmbedding = response.embedding;
+            // response = await ollamaInst.embeddings({
+            //     model: EMBEDDING_MODEL,
+            //     prompt: query
+            // });
+            // queryEmbedding = response.embedding;
         } else if (EMBEDDING_MODEL === 'amazon.titan-embed-text-v1') {
             const input = {
                 body: JSON.stringify({ inputText: query }),
@@ -102,19 +102,19 @@ async function revenueAgent(query, vectorDb) {
         let queryEmbedding = ""
         if (EMBEDDING_MODEL === 'gemini-embedding-001') {
             // Get embedding for query using Gemini
-            response = await ai.models.embedContent({
-                model: 'gemini-embedding-001',
-                contents: query,
-                outputDimensionality: 768
-            });
-            queryEmbedding = response.embeddings;
+            // response = await ai.models.embedContent({
+            //     model: 'gemini-embedding-001',
+            //     contents: query,
+            //     outputDimensionality: 768
+            // });
+            // queryEmbedding = response.embeddings;
         }
         else if (EMBEDDING_MODEL === 'qllama/bge-small-en-v1.5') {
-            response = await ollamaInst.embeddings({
-                model: EMBEDDING_MODEL,
-                prompt: query
-            });
-            queryEmbedding = response.embedding;
+            // response = await ollamaInst.embeddings({
+            //     model: EMBEDDING_MODEL,
+            //     prompt: query
+            // });
+            // queryEmbedding = response.embedding;
         }
         console.log("-------------before rev vectorDb");
 

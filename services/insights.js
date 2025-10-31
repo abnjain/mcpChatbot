@@ -1,16 +1,26 @@
 import { config } from 'dotenv';
 import { AppMokeOrders, OrderEditingHistory } from '../models/model.js';
-
+import { getDateRange } from './Date_range.js'
 config();
 
+// let inputQuery = '';
+let end = new Date();
+let start = new Date();
+start.setDate(start.getDate() - 30);
 
-export async function insights() {
-    const orders = await AppMokeOrders.find({ shopName: process.env.SHOP_NAME }).toArray();
+export async function insights({ inputQuery }) {
+    const date_range = await getDateRange(inputQuery);
+
+    if (date_range) {
+        start = new Date(date_range.from);
+        end = new Date(date_range.to);
+    }
+    const orders = await AppMokeOrders.find({ shopName: process.env.SHOP_NAME, createdAt: { $gte: start, $lte: end } }).toArray();
     let orderdb = []
     for (const order of orders) {
         orderdb.push(order.chunk);
     }
-    const edits = await OrderEditingHistory.find({ myshopify_domain: process.env.SHOP_NAME }).toArray();
+    const edits = await OrderEditingHistory.find({ myshopify_domain: process.env.SHOP_NAME, createdAt: { $gte: start, $lte: end } }).toArray();
 
     let editsdb = []
     for (const edit of edits) {

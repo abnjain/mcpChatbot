@@ -8,28 +8,12 @@ import ChatMessage, { hasHTML } from "./ChatMessage.jsx";
 import ToolPanel from "./ToolPanel.jsx";
 import ToolSelector from "./ToolSelector";
 import { handleInputOrEvent } from "../utils/handlers.js";
+import { config } from "../config/variables.js"
 
 /* ------------------- Config ------------------- */
-const BACKEND_URL = "http://localhost:3000";
-// In production, replace `null` with a proper DOM element reference (e.g., document.querySelector('[data-customer-id]'))
-const attribute = null;
-
-export const config = {
-  customerId:
-    attribute?.getAttribute("data-customer-id") ??
-    "gid://shopify/Customer/8045690618011",
-  customerEmail:
-    attribute?.getAttribute("data-customer-email") ??
-    "nofeh62488@misehub.com",
-    customerName:  attribute?.getAttribute("data-customer-name") ??
-    "tes User",
-  cart_id:
-    attribute?.getAttribute("data-cart-id") ??
-    "",
-  storefrontUrl:
-    attribute?.getAttribute("data-shop-domain") ??
-    "antim-fulwere-dev-2-0.myshopify.com",
-};
+const BACKEND_URL = "https://ollamaserver.fly.dev";
+// const BACKEND_URL = "http://localhost:3000";
+// const BACKEND_URL = "https://chatbot-fzrn.onrender.com";
 
 /* ------------------- Helpers ------------------- */
 const createUserMessage = (conversationId, text, extra = {}) => ({
@@ -89,6 +73,7 @@ function Chatbot() {
           conversationId,
           clientId: config.customerId,
           newConversation: isNewConversation,
+          storefrontUrl: config.storefrontUrl
         })
       )}`
     );
@@ -179,7 +164,7 @@ function Chatbot() {
         if (Array.isArray(parsedHistory)) {
           setHistory(parsedHistory);
         } else {
-          console.warn("History SSE payload is not an array:", parsedHistory);
+          // console.warn("History SSE payload is not an array:", parsedHistory);
           setHistory([]);
         }
       } catch (err) {
@@ -215,7 +200,7 @@ function Chatbot() {
           return true;
         }
       } catch (err) {
-        console.log("Error parsing msg.text:", err.message);
+        // console.log("Error parsing msg.text:", err.message);
       }
     }
 
@@ -241,17 +226,21 @@ function Chatbot() {
   const handleToolClick = async (toolMsg) => {
     try {
       let userText = "";
+      let botText = "";
       if (toolMsg.content[0].toolUse) {
-        const input = toolMsg.content[0].toolUse.input;
+        const input = toolMsg.content[0].toolUse.input;        
         setIsSending(true);
         if (input.orderNameOrId) {
-          userText = `Give order details of orderId ${toOrderId(
+          userText = `📦 Give order details of order ${toOrderId(
             input.orderNameOrId
           )}`;
         } else if (input.cursor === "") {
-          userText = "Give me order list.";
+          userText = "📋 Give me order list.";
         } else if (input.query) {
-          userText = "Give me " + JSON.stringify(input.query);
+          userText = "🗨️ Give me " + JSON.stringify(input.query);
+        } else if (input.add_items) {
+          userText = `🏷️ Give me details of last product.`;
+          botText = `Show me details of product variantId ${input.add_items[0].productVariantId ? input.add_items[0].productVariantId : "last product"}`
         }
       } else {
         const input =
@@ -259,7 +248,7 @@ function Chatbot() {
         userText = `${toolMsg.name} ${JSON.stringify(input)}`;
       }
 
-      await sendToBackend({ userText });
+      await sendToBackend({ userText, botText });
     } catch (err) {
       console.error("Tool click failed:", err);
       setConversation((prev) => [
@@ -286,6 +275,7 @@ function Chatbot() {
     setSelectedTool(null);
     setChatOpen(true);
     setActiveMessageIndex(null);
+    setIsSending(false);
     // window.location.reload();
   };
 
@@ -314,6 +304,8 @@ function Chatbot() {
             "Content-Type": "application/json",
             isExternal: "false",
             isMerchant: "false",
+            "Authorization": `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczpcL1wvYW50aW0tZnVsd2VyZS1kZXYtMi0wLm15c2hvcGlmeS5jb21cL2NoZWNrb3V0cyIsImRlc3QiOiJhbnRpbS1mdWx3ZXJlLWRldi0yLTAubXlzaG9waWZ5LmNvbSIsImF1ZCI6ImM3OTc1MzA3ZGZjZDlhYjU2MTI2NTQ4YjEzZmJiNDJkIiwiZXhwIjoxNzYwMzM0NTA4LCJuYmYiOjE3NjAzMzQyMDgsImlhdCI6MTc2MDMzNDIwOCwianRpIjoiOTk1YTYxNTEtNjM3OS00ZTY1LTlhZDctYTljMGRkODc0NzM4Iiwic3ViIjoiZ2lkOlwvXC9zaG9waWZ5XC9DdXN0b21lclwvODI1MTc2NDc2ODkyMyJ9.zI79GQPjPOdghKua_ljlgxMVHx5DUF13blKHbpghBz8`
+            // "Authorization": `Bearer ${}`
           },
           body: JSON.stringify({
             clientId: config.customerId,

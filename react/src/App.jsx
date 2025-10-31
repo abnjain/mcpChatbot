@@ -1,5 +1,5 @@
 import Chatbot from "./components/Chatbot"
-import "./main.css";
+// import "./main.css";
 
 const App = () => {
   return (

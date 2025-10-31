@@ -44,6 +44,6 @@ export const listConversations = async (clientId) => {
         .lean();
 };
 
-export const getConversation = async (clientId, conversationId) => {
-    return AIChatHistory.findOne({ clientId, conversationId }).lean();
+export const getConversation = async ({ clientId, conversationId }) => {
+    return AIChatHistory.findOne({ clientId, conversationId });
 };

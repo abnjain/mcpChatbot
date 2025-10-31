@@ -1,20 +1,25 @@
 import mongoose from "mongoose";
 import { ConverseCommand, ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime";
 import { startConversation, storeChatData } from "../../services/store.data.js";
-import { customerMcpSessionManage, merchantMcpSessionManager } from "../../index.js";
+import { customerMcpSessionManage } from "../../index.js";
 import { sseManager } from "../../utils/sseManager.js";
 import { awsBedrockClient } from "../../index.js";
 import { parseArgs } from "../Ollama/utils.js";
 import { asUserText, toBedrockTools, stripThinking } from "./utils.js";
-import { AIChatHistory } from '../../models/model.js';
-import { log } from "console";
+import { AIChatHistory, Partner } from '../../models/model.js';
+// import { getIsExternal, getIsMerchant, getStorefrontUrl, getCartId } from "../../store/requestStore.js";
+import { internalFnc } from "./internal.js";
+import { externalFnc } from "./external.js";
+// import { getCustomerEmail, getCustomerFirstName, getCustomerId } from "../../store/userDetailsStore.js";
+import { jwtDecode } from "jwt-decode";
+import { extractRequestConfig } from "../../utils/extractRequestConfig.js";
 
 const { Types } = mongoose;
 
-const TOOLS_NEED_SUMMARY = new Set(["insights_ae", "storefront_database_ae"]);
+export const TOOLS_NEED_SUMMARY = new Set(["insights_ae", "storefront_database_ae"]);
 
 
-function compactJSONStringify(obj) {
+export function compactJSONStringify(obj) {
     try {
         return JSON.stringify(obj);
     } catch (_) {
@@ -25,16 +30,16 @@ function compactJSONStringify(obj) {
 // Build one concise, cached system prompt. Keep it short to reduce cache size.
 function buildSystemPrompt(config) {
     const minimal = {
-        shopDomain: config?.storefrontUrl,
-        storefrontUrl: config?.storefrontUrl,
-        customerId: config?.customerId,
-        orderId: config?.orderId,
-        customerEmail: config?.customerEmail,
-        customerName: config?.customerName,
-        cart_id: config?.cart_id,
+        shopDomain: config.storefrontUrl,
+        storefrontUrl: config.storefrontUrl,
+        customerId: config.customerId,
+        // orderId: 
+        customerEmail: config.customerEmail,
+        customerName: config.customerName,
+        cart_id: config.cart_id
     };
-
-
+const today = new Date().toISOString().split("T")[0]; 
+    let extraPrompt = "user want products in his cart with batter way.";
     return [
 
         // "Do not include <thinking></thinking> in response ",
@@ -52,9 +57,9 @@ function buildSystemPrompt(config) {
         - Profile manage
         Do not reference Shopify at any point.
 
-    
+
         Conversation Protocol:
-        Always begin conversations using the customer’s name (e.g., “Hi {{Customer Name}}” or “Hello {{Customer Name}}”).
+        Always begin conversations using the customer’s name (e.g., “Hi {{customerName}}” or “Hello {{customerName}}”).
         Stay strictly within the defined workflows (e.g., catalog, cart, orders, policies, storefront, support tickets).
         If a user’s query is outside of these workflows, ask if they need help with any other relevant category instead.
         Do not guess or randomly invoke tools. Only call tools when necessary to answer the user’s request effectively.
@@ -62,21 +67,28 @@ function buildSystemPrompt(config) {
         If a required parameter for a tool is missing or ambiguous, ask the customer for that parameter before calling the tool.
         Do not return and call tool with undefine or null value.
         Do not show long order id in response its for internal perpose.
+        For any product specifications you can call product details or list tool.
+        You are operating on the date: ${today}. Never guess today's date; use this one and calculate all date as per ${today}.
 
         Profile Details: 
         If User ask for profile then you can share customer name and email details but user must be login means we need customer id.
 
         Tool Invocation Protocol:
+            Static Value Protection (Important):
+            - Treat all static values, constants, and blocks such as **FixedInfo**, tool names, field names, and protocol definitions as READ-ONLY.
+            - Never modify, rename, add, remove, or override these values.
+            - Never alter the structure, formatting, casing, or data of these constants.
+            - Do not auto-correct or “improve” them.
+            - if input is empty string then keep it as it is "" never replace with any values
+            - If any static field appears inconsistent or incomplete, **use it as-is** and proceed without changing it.
+            - You may only use these static values exactly as defined — **never invent or regenerate them**.
+            - If you find any value undefine then ask to user but not call the tools.
+            
             Order Identifiers:
             - If user provides a long numeric string (e.g., 5793462681755), treat it as the order ID.
             - If user provides a short number (e.g., 1045 or #1045), treat it as the order name. 
             - Never assume order name = order ID. 
 
-            User Identifiers:
-            - For each every order and profile related tools we need customer id if customer id is blank null or GuestId then ask user to login for identity.
-            - Do not call directly login tool ask to user and confirm before calling login tool. if user confirm then call login tool. 
-            
-            
             Add Product to Order:
             - If the user requests to add a product to an order, check if you have an order ID. If you do not, ask for the order ID. Once you have it, confirm with the user before invoking the "add to order" tool.
 
@@ -92,15 +104,58 @@ function buildSystemPrompt(config) {
             security:
             - You have to never show id's like customer id, order id, line item id, cart id, variant id or all kind of id in response. Instead of id's you can show order name or product name or product title variant title .
             - If you never get any values so you can use like your order,your product but do not show these ids in response.
-            - If user ask for any id's like order id,cart id,variant id,line item id,customer id you have to politely refuse.
-            - Do not tell the user that you are AI model or about your development just say that you are built by Account Editors team at Itgeeks, You are basically an Account Editor AI so behave like that.
+
 
             FixedInfo:${compactJSONStringify(minimal)}`,
     ].join("\n");
+
+
+    // User Identifiers:
+    //         - For each every order and profile related tools we need customer id if customer id is blank null or GuestId then ask user to login for identity.
+    //         - Do not call directly login tool ask to user and confirm before calling login tool. if user confirm then call login tool. 
+
+    // return [
+    //     `
+    // Role and Behavior:
+    // You are an Account Editor AI Agent. Your responses and actions must align with the behavior of an Account Editor AI agent, adhering to the defined workflows and rules below. Additionally, you must adapt your tone, style, and content based on the provided extraPrompt, if available, while strictly maintaining the defined functionality and rules.
+
+    // input extraPrompt:
+    // ${extraPrompt ? `"${extraPrompt}"` : "null"}
+    // Dynamic Prompt Handling:
+    // - If an extraPrompt is provided (e.g., "I want fast food based products" or "Respond in a funny tone"), analyze its semantic meaning and adjust your response tone, style, or content accordingly:
+    //   - For tone-based extraPrompts (e.g., "funny", "respectful", "casual"), adopt the specified tone in your responses while keeping them professional and aligned with the Account Editor role.
+    //   - For context-based extraPrompts (e.g., "fast food based products"), prioritize relevant products or suggestions (e.g., filter search results to fast food items) while staying within the allowed workflows.
+    //   - If the extraPrompt is ambiguous, infer the most likely intent and confirm with the user if needed (e.g., "Do you mean you want fast food products in your cart?").
+    // - If the extraPrompt is null, empty, or not provided, default to a professional and neutral tone, following the standard behavior outlined below.
+
+    // Core Functionality:
+    // You can perform the following actions:
+    // - Cart: Add, update, delete, and view items.
+    // - Orders: Manage and update orders before fulfillment (add new items, change quantity, change shipping address, remove items, cancel order).
+    // - Product Search: Search for products using the search_shop_catalog tool.
+    // - Support Tickets: Book and manage support tickets.
+    // - Store Policy: View store policies.
+    // - Discounts: See the latest discounts.
+    // - Profile Management: View and manage customer profile details (name, email) when the customer is logged in.
+
+    // Conversation Protocol:
+    // - Always begin conversations using the customer’s name (e.g., “Hi {{Customer Name}}” or “Hello {{Customer Name}}”).
+    // - Stay strictly within the defined workflows (e.g., catalog, cart, orders, policies, storefront, support tickets).
+    // - For queries outside these workflows, politely redirect the user to a relevant category (e.g., “Would you like help with your cart or orders?”).
+    // - Do not guess or randomly invoke tools. Only call tools when necessary to answer the user’s request effectively.
+    // - For unrelated or general queries, respond directly in natural language without invoking a tool.
+    // - If a required parameter for a tool is missing or ambiguous, ask the customer for clarification before proceeding.
+    // - Do not return or call tools with undefined or null values.
+    // - Do not reference the platform (e.g., Shopify) at any point.
+    // `,
+    // ].join("\n");
 }
 
+// AWS Bedrock Chat Handler
+// AWS Bedrock Chat Handler
 export const bedrockChat = async (req, res) => {
-    let isExternal = JSON.parse(req.headers["isexternal"]), isMerchant = JSON.parse(req.headers["ismerchant"]);
+    // const isExternal = getIsExternal();
+    // const isMerchant = getIsMerchant();
     const { clientId, conversationId, message, newConversation, config } = req.body || {};
     const SYSTEM_PROMPT = buildSystemPrompt(config);
 
@@ -110,24 +165,32 @@ export const bedrockChat = async (req, res) => {
             .status(400)
             .json({ ok: false, error: "clientId, conversationId and message required" });
     }
-
     try {
+        // Check if conversation exists in history
         const dataToSave = {
             partnerId: new Types.ObjectId(process.env.PARTNER_ID),
             shop: process.env.SHOP_NAME,
         };
+        const partnerDetails = await Partner.findOne({ myshopify_domain: req.body.config.storefrontUrl });
+        // req.body.config.partnerDetails = partnerDetails ?? null;
+        req.body.config.partnerDetails = req.body.config.partnerDetails || {};
+        req.body.config.partnerDetails.apiKey = partnerDetails.apiKey ?? null;
 
         if (!clientId || typeof message !== "string" || !conversationId) {
             return res.status(400).json({ ok: false, error: "clientId, conversationId and message required" });
         }
 
+        // Create new conversation based on clientid and conversationId
         if (newConversation) {
             await startConversation(clientId, conversationId, [
                 { role: "user", content: [{ text: String(message) }] },
             ]);
             history.push({ role: "user", content: [{ text: String(message) }] });
             await storeChatData(clientId, conversationId, { role: "user", content: [{ text: String(message) }] }, dataToSave);
-        } else {
+        }
+
+        // If conversation exists, continue chat
+        else {
             const existing = await AIChatHistory.findOne({ conversationId, clientId });
             if (!existing) {
                 await startConversation(clientId, conversationId, [
@@ -142,349 +205,38 @@ export const bedrockChat = async (req, res) => {
                 await storeChatData(clientId, conversationId, { role: "user", content: [{ text: String(message) }] }, dataToSave);
             }
         }
+
+        // divide merchant and customer tools
         let sess;
-        if (isMerchant) {
-            sess = { ...(await merchantMcpSessionManager.ensureSession(conversationId)) };
-        } else {
-            sess = { ...(await customerMcpSessionManage.ensureSession(conversationId)) };
-        }
+        // if (isMerchant) {
+        //       console.log("###STEP 421#### ", conversationId);
+        //     sess = { ...(await merchantMcpSessionManager.ensureSession(conversationId)) };
+        // } else {
+        //       console.log("###STEP 421#### ", conversationId);
+        sess = { ...(await customerMcpSessionManage.ensureSession(conversationId)) };
+        // }
 
         if (!sess.tools) {
             const { mcp } = sess;
             const { tools } = await mcp.listTools();
             sess.tools = tools || [];
         }
-
+        // register all the tools on bedrockLLM 
         const bedrockTools = toBedrockTools(sess.tools);
         let messages = [{ role: "user", content: asUserText(history) }];
 
         messages = history
-
-        const first = await awsBedrockClient.send(
-            new ConverseStreamCommand({
-                modelId: process.env.BEDROCK_MODEL_ID,
-                system: [
-                    { text: SYSTEM_PROMPT },
-                    { cachePoint: { type: "default" } },
-                ],
-
-                inferenceConfig: {
-                    maxTokens: 768,
-                    temperature: 0.5,
-                    topP: 0.9,
-                },
-                messages,
-                toolConfig: {
-                    tools: bedrockTools,
-                    toolChoice: { auto: {} },
-                },
-
-            })
-        );
-
-        // if (first?.usage) console.log("usage tokens :", first.usage);
-        const assistantMsg = { role: "assistant", content: [] };
-        // const contentBlocks = assistantMsg?.content ?? [];
-        // const toolUses = contentBlocks.filter((b) => b.toolUse).map((b) => b.toolUse);
-        // If the model requested tools, execute them and (optionally) do one skinny second call.
-
-        // Track all in-flight blocks by contentBlockIndex
-        var pendingTools = new Map(); // index -> { toolUseId, name, inputStr }
-        var toolUsesReady = [];       // collected finished tool uses to execute
-        let individualHistory = ""
-
-
-        for await (const ev of first.stream) {
-
-            console.log("####################### ev", ev)
-            if (ev.messageStart) {
-                assistantMsg.role = ev.messageStart.role;
-                individualHistory = "";       // so old deltas don’t leak
-                pendingTools.clear?.();       // clear any leftover partial tool blocks
-                toolUsesReady = [];
-            }
-            // ===== 1) ToolUse block starts here =====
-            else if (ev.contentBlockStart?.start?.toolUse) {
-                const idx = ev.contentBlockStart.contentBlockIndex; // IMPORTANT
-                const { toolUseId, name } = ev.contentBlockStart.start.toolUse;
-                // Initialize an entry for this tool block
-                pendingTools.set(idx, { toolUseId, name, inputStr: "" });
-            }
-            // ===== 2) Token / ToolUse deltas stream here =====
-            else if (ev.contentBlockDelta?.delta) {
-                const idx = ev.contentBlockDelta.contentBlockIndex;
-                const d = ev.contentBlockDelta.delta;
-                console.log("contentBlockDelta", d);
-                console.log("contentBlockDelta contentBlockIndex", idx);
-                // a) Normal text tokens
-                if (d.text && idx == 0) {
-                    console.log("Tool calling…5", d.text);
-                    const cleanPlain = stripThinking(d.text);
-                    individualHistory += cleanPlain
-
-                    if (isExternal) {
-                        res.write?.(""); // optional; you seem to sseManager.send elsewhere
-                    } else {
-                        // console.log("Tool calling…5", cleanPlain);
-                        sseManager.send(conversationId, "message", {
-                            role: "assistant",
-                            text: cleanPlain,
-                            content: [{ text: cleanPlain }],
-                            conversationId,
-                            clientId,
-                        });
-                    }
-                }
-
-                // b) Tool input arrives in chunks as JSON string pieces
-
-                if (d.toolUse?.input !== undefined) {
-                    const entry = pendingTools.get(idx);
-                    if (entry) {
-                        entry.inputStr += d.toolUse.input; // accumulate raw JSON string
-                    } else {
-                        // (rare) if we didn't see the start, create a placeholder
-                        pendingTools.set(idx, {
-                            toolUseId: d.toolUse.toolUseId ?? `unknown-${idx}`,
-                            name: d.toolUse.name ?? "unknown",
-                            inputStr: d.toolUse.input,
-                        });
-                    }
-                }
-            }
-            // ===== 3) Block stop means this tool's JSON is complete =====
-            else if (ev.contentBlockStop) {
-                const idx = ev.contentBlockStop.contentBlockIndex;
-                const hasThinkingTag = individualHistory.includes('<thinking>');
-                if (hasThinkingTag) {
-                    individualHistory = individualHistory.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
-                }
-
-                // if (!hasThinkingTag) {
-                if (String(individualHistory) != '') {
-                    storeChatData(
-                        clientId,
-                        conversationId,
-                        { role: "assistant", content: [{ text: String(individualHistory) }] },
-                        dataToSave
-                    );
-                }
-                // }
-                const entry = pendingTools.get(idx);
-                if (entry) {
-                    // Parse tool args safely
-                    let args = {};
-                    try {
-                        args = entry.inputStr ? JSON.parse(entry.inputStr) : {};
-                    } catch (e) {
-                        // Fallback: try to salvage JSON, or pass raw string
-                        console.warn("Failed to parse tool input JSON:", entry.inputStr);
-                        args = entry.inputStr;
-                    }
-
-                    toolUsesReady.push({
-                        toolUseId: entry.toolUseId,
-                        name: entry.name,
-                        input: args,
-                    });
-                    pendingTools.delete(idx);
-                }
-            }
-            // ===== 4) Message stop: execute any tools we collected =====
-            else if (ev.messageStop) {
-
-                // If tools were requested in this message, run them now
-                if (toolUsesReady.length > 0) {
-                    // Keep the assistant's toolUse in history
-                    //messages.push(assistantMsg);
-
-                    const { mcp } = sess;
-                    const toolResultBlocks = [];
-                    let needsSecondCall = false;
-
-                    for (const tu of toolUsesReady) {
-                        const { name, input, toolUseId } = tu;
-                        console.log("Tool calling…", name);
-
-                        if (!isExternal) {
-                            console.log("Tool calling…1", name);
-
-                            sseManager.send(conversationId, "message", {
-                                role: "assistant",
-                                text: `${name}`,
-                                content: [{ text: name }],
-                                conversationId,
-                                toolName: name,
-                            });
-                        }
-
-                        const result = await mcp.callTool({
-                            name,
-                            arguments: typeof input === "string" ? parseArgs(input) : input,
-                        });
-
-                        storeChatData(
-                            clientId,
-                            conversationId,
-                            {
-                                role: "assistant", name, content: [{
-                                    "toolUse": {
-                                        toolUseId: toolUseId,
-                                        name: name,
-                                        input: {
-                                            ...input,
-                                            lastOrderDetails: result?.lastOrderDetails || null, // new field added
-                                        },
-                                    }
-                                },
-                                ], tool_call_id: toolUseId
-                            },
-                            dataToSave
-                        );
-                        console.log("$$$$$$$$$$$$$$$$$ result of tools in loop lenght", result?.content.length);
-                        for (const element of (result?.content || [])) {
-
-                            console.log("$$$$$$$$$$$$$$$$$ result of tools in loop", element.type);
-
-                            const rawText =
-                                element?.text ?? compactJSONStringify({ content: [element] } ?? {});
-
-                            // Persist tool call for auditing (associate with tool_use_id)
-                            if (element.type == "text") {
-                                storeChatData(
-                                    clientId,
-                                    conversationId,
-                                    {
-                                        role: "assistant", name, content: [element
-                                        ]
-                                    },
-                                    dataToSave
-                                );
-                                console.log("Tool calling…2", rawText);
-                                sseManager.send(conversationId, "message", {
-                                    role: "assistant",
-                                    text: rawText,
-                                    content: [{ text: rawText }],
-                                    conversationId,
-                                    clientId,
-                                    toolName: name,
-                                });
-                            }
-                            else {
-
-                                if (TOOLS_NEED_SUMMARY.has(name)) {
-                                    needsSecondCall = true;
-                                    toolResultBlocks.push({
-                                        toolResult: {
-                                            toolUseId,
-                                            content: [{ text: rawText }],
-                                            status: "success",
-                                        },
-                                    });
-                                } else {
-                                    if (isExternal) {
-                                        return res.json({
-                                            ok: true,
-                                            role: "assistant",
-                                            text: rawText,
-                                            conversationId,
-                                            toolName: name,
-                                        });
-                                    } else {
-                                        // console.log("Tool calling…3", rawText);
-                                        sseManager.send(conversationId, "message", {
-                                            role: "assistant",
-                                            text: rawText,
-                                            content: [{ text: rawText }],
-                                            conversationId,
-                                            clientId,
-                                            toolName: name,
-                                        });
-
-                                    }
-                                }
-                            }
-
-                        };
-
-
-
-                    }
-
-                    // Optional skinny second call with all toolResults
-                    // if (needsSecondCall && toolResultBlocks.length) {
-                    //     messages.push({ role: "user", content: toolResultBlocks });
-
-                    //     const second = await awsBedrockClient.send(
-                    //         new ConverseCommand({
-                    //             modelId: process.env.BEDROCK_MODEL_ID,
-                    //             system: [
-                    //                 { text: SYSTEM_PROMPT },
-                    //                 { cachePoint: { type: "default" } },
-                    //             ],
-                    //             messages,
-                    //             inferenceConfig: {
-                    //                 maxTokens: 1024,
-                    //                 temperature: 0.5,
-                    //                 topP: 0.9,
-                    //             },
-                    //             toolConfig: {
-                    //                 tools: bedrockTools,
-                    //                 toolChoice: { auto: {} },
-                    //             },
-                    //         })
-                    //     );
-
-                    //     if (second?.usage) console.log("usage tokens second call :", second.usage);
-
-                    //     const finalBlocks = second.output?.message?.content ?? [];
-                    //     const resultText = finalBlocks
-                    //         .map((b) => (b.text ? b.text : ""))
-                    //         .filter(Boolean)
-                    //         .join("\n")
-                    //         .trim();
-
-                    //     const cleanFinal = stripThinking(resultText);
-
-
-                    //     await storeChatData(
-                    //         clientId,
-                    //         conversationId,
-                    //         { role: "assistant", content: [{ text: String(resultText) }] },
-                    //         dataToSave
-                    //     );
-
-                    //     if (isExternal) {
-                    //         return res.send({ role: "model", text: cleanFinal, conversationId });
-                    //     } else {
-                    //         sseManager.send(conversationId, "message", {
-                    //             role: "model",
-                    //             text: cleanFinal,
-                    //             content: [{ text: cleanFinal }],
-                    //             conversationId,
-                    //             clientId,
-                    //         });
-                    //         return res.json({ ok: true, conversationId, clientId });
-                    //     }
-                    // }
-
-
-                }
-                toolUsesReady.length = 0;
-                // If no tools, just end
-                return res.json({ ok: true, conversationId, clientId });
-            }
-            // ===== 4) Message matadata: show token uses =====
-            if (ev.metadata) {
-                console.log("Token usage:", ev.metadata.usage);
-            }
-
+        // console.log(history.filter(chat => {
+        //     chat.content.map(text => text === "")
+        // }));
+        if (!req.body.config.isExternal) {
+            const internal = internalFnc({ SYSTEM_PROMPT, messages, bedrockTools, conversationId, clientId, sess, dataToSave, res, req });
+        } else {
+            const external = externalFnc({ SYSTEM_PROMPT, messages, bedrockTools, conversationId, clientId, sess, dataToSave, res, req });
         }
 
-
-
     } catch (err) {
-        console.error("bedrockChat error:", err);
-        return res.status(500).json({ ok: false, error: "server_error" });
+        console.error(err);
+        return res.status(500).json({ ok: false, error: "server_error", message: err.message });
     }
 };
